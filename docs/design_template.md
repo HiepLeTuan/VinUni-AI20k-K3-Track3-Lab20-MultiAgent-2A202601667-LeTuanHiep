@@ -41,14 +41,14 @@ kết quả fallback; khi đủ answer và critic đã chạy, route là `done`.
 ## Guardrails
 
 - Max iterations: `MAX_ITERATIONS`, mặc định 6.
-- Timeout: `TIMEOUT_SECONDS`, mặc định 60 giây cho provider và toàn workflow.
-- Retry: LLM retry tối đa 3 lần với exponential backoff.
-- Fallback: Search dùng bộ nguồn offline khi không có Tavily key; lỗi worker được ghi vào state.
+- Timeout: `TIMEOUT_SECONDS`, mặc định 180 giây cho workflow; provider dùng cùng upper bound.
+- Retry: LLM và Tavily retry tối đa 3 lần với exponential backoff.
+- Fallback: Search dùng bộ nguồn offline khi thiếu key hoặc Tavily lỗi; lỗi worker được ghi vào state.
 - Validation: Pydantic kiểm tra query/state; Critic kiểm tra answer và citation coverage.
 
 ## Benchmark plan
 
 Chạy ba query trong `configs/lab_default.yaml`. Đo wall-clock latency, provider cost từ usage,
-quality cấu trúc 0-10, citation coverage và failure rate. Kỳ vọng multi-agent chậm hơn baseline
-nhưng có citation coverage và khả năng truy vết tốt hơn. Baseline cần `OPENAI_API_KEY`; workflow
-multi-agent có thể benchmark offline.
+LLM-as-judge rubric 0-10, citation coverage và failure rate. Kết quả thực tế cho thấy
+multi-agent chậm và tốn chi phí hơn nhưng đạt citation coverage 100% và có trace từng agent.
+Baseline cần `OPENAI_API_KEY`; workflow multi-agent có deterministic fallback khi chạy offline.

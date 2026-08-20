@@ -34,16 +34,16 @@ Trace + Benchmark Report
 ```text
 .
 ├── src/multi_agent_research_lab/
-│   ├── agents/              # Agent interfaces + skeletons
+│   ├── agents/              # Agent interfaces + implementations
 │   ├── core/                # Config, state, schemas, errors
-│   ├── graph/               # LangGraph workflow skeleton
+│   ├── graph/               # LangGraph workflow
 │   ├── services/            # LLM, search, storage clients
-│   ├── evaluation/          # Benchmark/evaluation skeleton
+│   ├── evaluation/          # Benchmark and LLM-as-judge evaluation
 │   ├── observability/       # Logging/tracing hooks
 │   └── cli.py               # CLI entrypoint
 ├── configs/                 # YAML configs for lab variants
 ├── docs/                    # Lab guide, rubric, design notes
-├── tests/                   # Unit tests for skeleton behavior
+├── tests/                   # Unit and workflow tests
 ├── notebooks/               # Optional notebook entrypoint
 ├── scripts/                 # Helper scripts
 ├── .env.example             # Environment variables template
@@ -102,17 +102,18 @@ Lệnh trả về state đầy đủ gồm sources, answer, route history, trace
 ### 6. Sinh benchmark report
 
 ```bash
-python -m multi_agent_research_lab.cli benchmark \
-  --query "Compare single-agent and multi-agent research workflows"
+python -m multi_agent_research_lab.cli benchmark
 ```
 
-Thêm `--include-baseline` khi đã cấu hình OpenAI key.
+Lệnh mặc định chạy baseline và multi-agent cho ba query trong `configs/lab_default.yaml`,
+thêm failure injection, xuất state vào `reports/traces/` và ghi link LangSmith vào report.
+Dùng `--query "..."` để benchmark một câu hỏi hoặc `--no-include-baseline` để bỏ baseline.
 
 ## Milestones trong 2 giờ lab
 
 | Thời lượng | Milestone | File gợi ý |
 |---:|---|---|
-| 0-15' | Setup, chạy baseline skeleton | `cli.py`, `services/llm_client.py` |
+| 0-15' | Setup, chạy baseline | `cli.py`, `services/llm_client.py` |
 | 15-45' | Build Supervisor / router | `agents/supervisor.py`, `graph/workflow.py` |
 | 45-75' | Thêm Researcher, Analyst, Writer | `agents/*.py`, `core/state.py` |
 | 75-95' | Trace + benchmark single vs multi | `observability/tracing.py`, `evaluation/benchmark.py` |
@@ -135,7 +136,7 @@ Thêm `--include-baseline` khi đã cấu hình OpenAI key.
 2. Tavily search client cùng offline fallback.
 3. Supervisor routing và worker agents.
 4. LangGraph workflow có giới hạn vòng lặp và timeout.
-5. JSON-serializable trace spans và benchmark report.
+5. LangSmith spans, local JSON traces và benchmark report dùng LLM judge.
 
 ## Deliverables
 
