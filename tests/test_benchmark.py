@@ -6,7 +6,13 @@ from multi_agent_research_lab.graph.workflow import MultiAgentWorkflow
 
 
 def test_benchmark_scores_citation_coverage() -> None:
-    settings = Settings(max_iterations=6, timeout_seconds=5, tavily_api_key=None)
+    settings = Settings(
+        max_iterations=6,
+        timeout_seconds=5,
+        tavily_api_key=None,
+        openai_api_key=None,
+        langsmith_api_key=None,
+    )
 
     def runner(query: str) -> ResearchState:
         state = ResearchState(request=ResearchQuery(query=query))
