@@ -1,8 +1,8 @@
-# Lab 20: Multi-Agent Research System Starter
+# Lab 20: Multi-Agent Research System
 
-Starter repo cho bài lab **Multi-Agent Systems**: xây dựng hệ thống nghiên cứu gồm **Supervisor + Researcher + Analyst + Writer** và benchmark với single-agent baseline.
+Repo bài lab **Multi-Agent Systems** triển khai hệ thống nghiên cứu gồm **Supervisor + Researcher + Analyst + Writer + Critic** và benchmark với single-agent baseline.
 
-> Mục tiêu của repo này là cung cấp **production-grade skeleton** để học viên phát triển code cá nhân. Các phần logic quan trọng được để ở dạng `TODO` để học viên tự triển khai.
+Hệ thống chạy tìm kiếm Tavily khi có key và dùng bộ nguồn offline minh bạch khi chưa cấu hình key.
 
 ## Learning outcomes
 
@@ -81,23 +81,32 @@ make test
 python -m multi_agent_research_lab.cli --help
 ```
 
-### 4. Chạy baseline skeleton
+### 4. Chạy baseline
 
 ```bash
 python -m multi_agent_research_lab.cli baseline \
   --query "Research GraphRAG state-of-the-art and write a 500-word summary"
 ```
 
-Lệnh này chỉ chạy khung baseline tối giản. Học viên cần tự triển khai logic LLM thực tế trong `src/multi_agent_research_lab/services/llm_client.py`.
+Baseline gọi OpenAI trực tiếp và yêu cầu `OPENAI_API_KEY`.
 
-### 5. Chạy multi-agent skeleton
+### 5. Chạy multi-agent
 
 ```bash
 python -m multi_agent_research_lab.cli multi-agent \
   --query "Research GraphRAG state-of-the-art and write a 500-word summary"
 ```
 
-Mặc định lệnh sẽ báo các `TODO` cần làm. Đây là chủ đích của starter repo.
+Lệnh trả về state đầy đủ gồm sources, answer, route history, trace và errors.
+
+### 6. Sinh benchmark report
+
+```bash
+python -m multi_agent_research_lab.cli benchmark \
+  --query "Compare single-agent and multi-agent research workflows"
+```
+
+Thêm `--include-baseline` khi đã cấu hình OpenAI key.
 
 ## Milestones trong 2 giờ lab
 
@@ -120,23 +129,13 @@ Mặc định lệnh sẽ báo các `TODO` cần làm. Đây là chủ đích c�
 - Không để agent chạy vô hạn: dùng `max_iterations`, `timeout_seconds`.
 - Có benchmark report thay vì chỉ demo output đẹp.
 
-## TODO chính cho học viên
+## Các phần đã triển khai
 
-Tìm trong code các marker:
-
-```bash
-grep -R "TODO(student)" -n src tests docs
-```
-
-Các phần học viên cần tự làm:
-
-1. Implement LLM client.
-2. Implement web/search client hoặc mock search source.
-3. Implement routing decision trong Supervisor.
-4. Implement từng worker agent.
-5. Build LangGraph workflow.
-6. Thêm tracing provider thật: LangSmith, Langfuse hoặc OpenTelemetry.
-7. Viết benchmark report.
+1. OpenAI LLM client có retry, timeout và token usage.
+2. Tavily search client cùng offline fallback.
+3. Supervisor routing và worker agents.
+4. LangGraph workflow có giới hạn vòng lặp và timeout.
+5. JSON-serializable trace spans và benchmark report.
 
 ## Deliverables
 
