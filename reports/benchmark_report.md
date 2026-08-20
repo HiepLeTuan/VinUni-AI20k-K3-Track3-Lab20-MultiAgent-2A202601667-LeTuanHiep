@@ -2,11 +2,8 @@
 
 | Run | Latency (s) | Cost (USD) | Quality | Citation cov. | Failure rate | Notes |
 |---|---:|---:|---:|---:|---:|---|
-| multi-agent | 0.86 | 0.0000 | 8.0 | 100% | 0% | 3 sources; 95 answer words |
-
-The single-agent row is intentionally absent because this run had no authorized OpenAI
-provider call. Re-run with `--include-baseline` after configuring `OPENAI_API_KEY` to produce
-the direct comparison; the command records provider latency and token metadata.
+| single-agent | 8.93 | 0.0003 | 7.0 | 0% | 0% | 0 sources; 364 answer words |
+| multi-agent | 1.12 | 0.0000 | 8.0 | 100% | 0% | 3 sources; 95 answer words |
 
 ## Interpretation
 
