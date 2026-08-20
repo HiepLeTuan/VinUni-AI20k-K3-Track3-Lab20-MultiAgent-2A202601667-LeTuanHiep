@@ -19,6 +19,12 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
+    openai_input_cost_per_million: float = Field(
+        default=0.15, ge=0, validation_alias="OPENAI_INPUT_COST_PER_MILLION"
+    )
+    openai_output_cost_per_million: float = Field(
+        default=0.60, ge=0, validation_alias="OPENAI_OUTPUT_COST_PER_MILLION"
+    )
 
     langsmith_api_key: str | None = Field(default=None, validation_alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(
