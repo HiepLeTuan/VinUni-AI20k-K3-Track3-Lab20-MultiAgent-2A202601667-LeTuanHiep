@@ -4,6 +4,8 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from multi_agent_research_lab.core.config import Settings, get_settings
 from multi_agent_research_lab.core.errors import AgentExecutionError
 from multi_agent_research_lab.core.schemas import SourceDocument
@@ -20,6 +22,23 @@ class SearchClient:
 
         if not self.settings.tavily_api_key:
             return self._offline_results(query, max_results)
+        try:
+            return self._search_tavily(query, max_results)
+        except AgentExecutionError as exc:
+            results = self._offline_results(query, max_results)
+            for result in results:
+                result.metadata["fallback_reason"] = str(exc)
+            return results
+
+    @retry(
+        retry=retry_if_exception_type(AgentExecutionError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, min=0.5, max=2),
+        reraise=True,
+    )
+    def _search_tavily(self, query: str, max_results: int) -> list[SourceDocument]:
+        """Call Tavily with bounded retry before the caller applies fallback."""
+
         payload = json.dumps(
             {
                 "api_key": self.settings.tavily_api_key,

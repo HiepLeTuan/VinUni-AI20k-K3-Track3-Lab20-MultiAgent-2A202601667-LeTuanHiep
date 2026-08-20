@@ -16,7 +16,13 @@ def test_offline_search_is_bounded_and_attributed() -> None:
 
 
 def test_workflow_produces_cited_answer_and_trace() -> None:
-    settings = Settings(max_iterations=6, timeout_seconds=5, tavily_api_key=None)
+    settings = Settings(
+        max_iterations=6,
+        timeout_seconds=5,
+        tavily_api_key=None,
+        openai_api_key=None,
+        langsmith_api_key=None,
+    )
     initial = ResearchState(request=ResearchQuery(query="Explain multi-agent orchestration"))
 
     result = MultiAgentWorkflow(settings=settings).run(initial)

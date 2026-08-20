@@ -1,4 +1,4 @@
-"""Supervisor / router skeleton."""
+"""Supervisor and deterministic router."""
 
 from multi_agent_research_lab.agents.base import BaseAgent
 from multi_agent_research_lab.core.config import Settings, get_settings

@@ -1,7 +1,8 @@
-"""Bounded LangGraph workflow for the research agents."""
+"""Bounded LangGraph workflow for research agents."""
 
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from contextvars import copy_context
 from typing import Any
 
 from multi_agent_research_lab.agents import (
@@ -15,7 +16,9 @@ from multi_agent_research_lab.agents.base import BaseAgent
 from multi_agent_research_lab.core.config import Settings, get_settings
 from multi_agent_research_lab.core.errors import AgentExecutionError
 from multi_agent_research_lab.core.state import ResearchState
-from multi_agent_research_lab.observability.tracing import trace_span
+from multi_agent_research_lab.observability.tracing import flush_traces, trace_span
+from multi_agent_research_lab.services.llm_client import LLMClient
+from multi_agent_research_lab.services.search_client import SearchClient
 
 
 class MultiAgentWorkflow:
@@ -34,12 +37,13 @@ class MultiAgentWorkflow:
         critic: CriticAgent | None = None,
     ) -> None:
         self.settings = settings or get_settings()
+        llm_client = LLMClient(self.settings)
         self.supervisor = supervisor or SupervisorAgent(self.settings)
         self.workers: dict[str, BaseAgent] = {
-            "researcher": researcher or ResearcherAgent(),
-            "analyst": analyst or AnalystAgent(),
-            "writer": writer or WriterAgent(),
-            "critic": critic or CriticAgent(),
+            "researcher": researcher or ResearcherAgent(SearchClient(self.settings), llm_client),
+            "analyst": analyst or AnalystAgent(llm_client),
+            "writer": writer or WriterAgent(llm_client),
+            "critic": critic or CriticAgent(llm_client),
         }
 
     @staticmethod
@@ -48,14 +52,12 @@ class MultiAgentWorkflow:
 
     def _node(self, agent: BaseAgent) -> Any:
         def execute(state: ResearchState) -> dict[str, Any]:
-            with trace_span(agent.name, {"iteration": state.iteration}) as span:
+            with trace_span(agent.name, {"iteration": state.iteration}, self.settings) as span:
                 try:
                     result = agent.run(state)
                 except Exception as exc:
                     state.errors.append(f"{agent.name} failed: {exc}")
-                    state.add_trace_event(
-                        "agent_error", {"agent": agent.name, "error": str(exc)}
-                    )
+                    state.add_trace_event("agent_error", {"agent": agent.name, "error": str(exc)})
                     result = state
                 finally:
                     state.add_trace_event("span", span)
@@ -89,18 +91,28 @@ class MultiAgentWorkflow:
 
         compiled = self.build().compile()  # type: ignore[attr-defined]
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-workflow")
-        future = executor.submit(
-            compiled.invoke,
-            state,
-            {"recursion_limit": self.settings.max_iterations * 2 + 2},
+        with trace_span(
+            "multi_agent_workflow", {"query": state.request.query}, self.settings
+        ) as root_span:
+            context = copy_context()
+            future = executor.submit(
+                context.run,
+                compiled.invoke,
+                state,
+                {"recursion_limit": self.settings.max_iterations * 2 + 2},
+            )
+            try:
+                result = future.result(timeout=self.settings.timeout_seconds)
+            except FutureTimeoutError as exc:
+                future.cancel()
+                raise AgentExecutionError(
+                    f"Workflow exceeded {self.settings.timeout_seconds}s timeout"
+                ) from exc
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+        final_state = (
+            result if isinstance(result, ResearchState) else ResearchState.model_validate(result)
         )
-        try:
-            result = future.result(timeout=self.settings.timeout_seconds)
-        except FutureTimeoutError as exc:
-            future.cancel()
-            raise AgentExecutionError(
-                f"Workflow exceeded {self.settings.timeout_seconds}s timeout"
-            ) from exc
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
-        return result if isinstance(result, ResearchState) else ResearchState.model_validate(result)
+        final_state.add_trace_event("workflow_span", root_span)
+        flush_traces(self.settings)
+        return final_state

@@ -3,6 +3,7 @@
 Production note: agents should depend on this interface instead of importing an SDK directly.
 """
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,12 +21,31 @@ class LLMResponse:
     cost_usd: float | None = None
 
 
+def parse_json_object(content: str) -> dict[str, Any]:
+    """Parse the first JSON object from a model response."""
+
+    start = content.find("{")
+    end = content.rfind("}")
+    if start < 0 or end < start:
+        raise json.JSONDecodeError("No JSON object found", content, 0)
+    value = json.loads(content[start : end + 1])
+    if not isinstance(value, dict):
+        raise json.JSONDecodeError("Expected a JSON object", content, start)
+    return value
+
+
 class LLMClient:
     """Small OpenAI adapter with retries, timeout, and usage capture."""
 
     def __init__(self, settings: Settings | None = None, client: Any | None = None) -> None:
         self.settings = settings or get_settings()
         self._client = client
+
+    @property
+    def configured(self) -> bool:
+        """Return whether this client can make a provider call."""
+
+        return self._client is not None or bool(self.settings.openai_api_key)
 
     def _get_client(self) -> Any:
         if self._client is not None:
