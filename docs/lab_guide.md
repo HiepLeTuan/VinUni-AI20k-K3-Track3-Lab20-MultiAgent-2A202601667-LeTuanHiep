@@ -22,7 +22,7 @@ File gợi ý:
 - `src/multi_agent_research_lab/cli.py`
 - `src/multi_agent_research_lab/services/llm_client.py`
 
-TODO(student): thay baseline placeholder bằng một call LLM thật.
+Đã triển khai baseline bằng OpenAI qua `LLMClient`, có retry, timeout và token metadata.
 
 ## Milestone 2: Supervisor
 
@@ -31,7 +31,7 @@ File gợi ý:
 - `src/multi_agent_research_lab/agents/supervisor.py`
 - `src/multi_agent_research_lab/graph/workflow.py`
 
-TODO(student): implement routing policy.
+Đã triển khai routing policy dựa trên các artifact còn thiếu, lỗi hiện tại và giới hạn vòng lặp.
 
 Gợi ý câu hỏi thiết kế:
 
@@ -49,7 +49,7 @@ File gợi ý:
 - `src/multi_agent_research_lab/agents/analyst.py`
 - `src/multi_agent_research_lab/agents/writer.py`
 
-TODO(student): implement từng worker.
+Đã triển khai Researcher, Analyst, Writer và Critic với output có cấu trúc và trace event.
 
 ## Milestone 4: Trace và benchmark
 
@@ -115,3 +115,12 @@ Mỗi nhóm trả lời 2 câu:
 
 1. Case nào nên dùng multi-agent? Vì sao?
 2. Case nào không nên dùng multi-agent? Vì sao?
+
+### Trả lời
+
+1. Nên dùng multi-agent khi task cần tìm nhiều nguồn, tách bước phân tích/viết/kiểm chứng,
+   hoặc cần audit từng handoff. Benchmark cho thấy cách này đạt citation coverage 100% và có
+   LangSmith trace cho từng agent.
+2. Không nên dùng multi-agent cho câu hỏi ngắn, ít rủi ro hoặc yêu cầu latency thấp. Trong ba
+   query benchmark, baseline trung bình 6.64 giây trong khi multi-agent là 26.19 giây; LLM judge
+   cũng không cho thấy quality tăng tương ứng với chi phí orchestration.

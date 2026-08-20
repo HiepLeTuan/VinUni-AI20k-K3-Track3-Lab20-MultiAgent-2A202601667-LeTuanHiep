@@ -1,19 +1,27 @@
-"""Skeleton guard test.
-
-NOTE(student): Test này chỉ xác nhận skeleton còn nguyên TODO. Sau khi bạn implement
-SupervisorAgent, test này SẼ FAIL - đó là điều bình thường. Hãy xóa hoặc thay thế nó
-bằng unit test thật cho routing policy của bạn.
-"""
-
-import pytest
-
 from multi_agent_research_lab.agents import SupervisorAgent
-from multi_agent_research_lab.core.errors import StudentTodoError
+from multi_agent_research_lab.core.config import Settings
 from multi_agent_research_lab.core.schemas import ResearchQuery
 from multi_agent_research_lab.core.state import ResearchState
 
 
-def test_supervisor_is_student_todo() -> None:
+def test_supervisor_routes_through_required_stages() -> None:
     state = ResearchState(request=ResearchQuery(query="Explain multi-agent systems"))
-    with pytest.raises(StudentTodoError):
-        SupervisorAgent().run(state)
+    supervisor = SupervisorAgent(Settings(max_iterations=6))
+
+    supervisor.run(state)
+    assert state.route_history[-1] == "researcher"
+
+    state.research_notes = "Evidence"
+    supervisor.run(state)
+    assert state.route_history[-1] == "analyst"
+
+    state.analysis_notes = "Analysis"
+    supervisor.run(state)
+    assert state.route_history[-1] == "writer"
+
+
+def test_supervisor_stops_at_iteration_limit() -> None:
+    state = ResearchState(request=ResearchQuery(query="Explain multi-agent systems"), iteration=2)
+    SupervisorAgent(Settings(max_iterations=2)).run(state)
+    assert state.route_history[-1] == "done"
+    assert state.errors

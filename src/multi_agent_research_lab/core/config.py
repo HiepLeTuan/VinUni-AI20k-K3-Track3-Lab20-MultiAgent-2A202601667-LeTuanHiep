@@ -19,6 +19,12 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
+    openai_input_cost_per_million: float = Field(
+        default=0.15, ge=0, validation_alias="OPENAI_INPUT_COST_PER_MILLION"
+    )
+    openai_output_cost_per_million: float = Field(
+        default=0.60, ge=0, validation_alias="OPENAI_OUTPUT_COST_PER_MILLION"
+    )
 
     langsmith_api_key: str | None = Field(default=None, validation_alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(
@@ -34,7 +40,7 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = Field(default=None, validation_alias="TAVILY_API_KEY")
 
     max_iterations: int = Field(default=6, ge=1, le=20, validation_alias="MAX_ITERATIONS")
-    timeout_seconds: int = Field(default=60, ge=5, le=600, validation_alias="TIMEOUT_SECONDS")
+    timeout_seconds: int = Field(default=180, ge=5, le=600, validation_alias="TIMEOUT_SECONDS")
 
 
 @lru_cache(maxsize=1)

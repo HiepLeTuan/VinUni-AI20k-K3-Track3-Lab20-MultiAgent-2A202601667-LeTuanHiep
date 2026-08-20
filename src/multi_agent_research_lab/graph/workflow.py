@@ -1,7 +1,24 @@
-"""LangGraph workflow skeleton."""
+"""Bounded LangGraph workflow for research agents."""
 
-from multi_agent_research_lab.core.errors import StudentTodoError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from contextvars import copy_context
+from typing import Any
+
+from multi_agent_research_lab.agents import (
+    AnalystAgent,
+    CriticAgent,
+    ResearcherAgent,
+    SupervisorAgent,
+    WriterAgent,
+)
+from multi_agent_research_lab.agents.base import BaseAgent
+from multi_agent_research_lab.core.config import Settings, get_settings
+from multi_agent_research_lab.core.errors import AgentExecutionError
 from multi_agent_research_lab.core.state import ResearchState
+from multi_agent_research_lab.observability.tracing import flush_traces, trace_span
+from multi_agent_research_lab.services.llm_client import LLMClient
+from multi_agent_research_lab.services.search_client import SearchClient
 
 
 class MultiAgentWorkflow:
@@ -10,19 +27,92 @@ class MultiAgentWorkflow:
     Keep orchestration here; keep agent internals in `agents/`.
     """
 
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        supervisor: SupervisorAgent | None = None,
+        researcher: ResearcherAgent | None = None,
+        analyst: AnalystAgent | None = None,
+        writer: WriterAgent | None = None,
+        critic: CriticAgent | None = None,
+    ) -> None:
+        self.settings = settings or get_settings()
+        llm_client = LLMClient(self.settings)
+        self.supervisor = supervisor or SupervisorAgent(self.settings)
+        self.workers: dict[str, BaseAgent] = {
+            "researcher": researcher or ResearcherAgent(SearchClient(self.settings), llm_client),
+            "analyst": analyst or AnalystAgent(llm_client),
+            "writer": writer or WriterAgent(llm_client),
+            "critic": critic or CriticAgent(llm_client),
+        }
+
+    @staticmethod
+    def _as_update(state: ResearchState) -> dict[str, Any]:
+        return state.model_dump()
+
+    def _node(self, agent: BaseAgent) -> Any:
+        def execute(state: ResearchState) -> dict[str, Any]:
+            with trace_span(agent.name, {"iteration": state.iteration}, self.settings) as span:
+                try:
+                    result = agent.run(state)
+                except Exception as exc:
+                    state.errors.append(f"{agent.name} failed: {exc}")
+                    state.add_trace_event("agent_error", {"agent": agent.name, "error": str(exc)})
+                    result = state
+                finally:
+                    state.add_trace_event("span", span)
+            return self._as_update(result)
+
+        return execute
+
     def build(self) -> object:
-        """Create a LangGraph graph.
+        """Create a graph with conditional supervisor routing."""
 
-        TODO(student): Implement nodes, edges, conditional routing, and stop condition.
-        Suggested nodes: supervisor, researcher, analyst, writer, optional critic.
-        """
+        try:
+            from langgraph.graph import END, START, StateGraph
+        except ImportError as exc:
+            raise AgentExecutionError("Install the 'llm' extra to use LangGraph") from exc
 
-        raise StudentTodoError("TODO(student): implement MultiAgentWorkflow.build")
+        graph = StateGraph(ResearchState)
+        graph.add_node("supervisor", self._node(self.supervisor))
+        for name, agent in self.workers.items():
+            graph.add_node(name, self._node(agent))
+            graph.add_edge(name, "supervisor")
+        graph.add_edge(START, "supervisor")
+        graph.add_conditional_edges(
+            "supervisor",
+            lambda state: state.route_history[-1],
+            {**{name: name for name in self.workers}, "done": END},
+        )
+        return graph
 
     def run(self, state: ResearchState) -> ResearchState:
-        """Execute the graph and return final state.
+        """Compile and invoke the graph within the configured wall-clock timeout."""
 
-        TODO(student): Compile graph, invoke it, and convert result back to ResearchState.
-        """
-
-        raise StudentTodoError("TODO(student): implement MultiAgentWorkflow.run")
+        compiled = self.build().compile()  # type: ignore[attr-defined]
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-workflow")
+        with trace_span(
+            "multi_agent_workflow", {"query": state.request.query}, self.settings
+        ) as root_span:
+            context = copy_context()
+            future = executor.submit(
+                context.run,
+                compiled.invoke,
+                state,
+                {"recursion_limit": self.settings.max_iterations * 2 + 2},
+            )
+            try:
+                result = future.result(timeout=self.settings.timeout_seconds)
+            except FutureTimeoutError as exc:
+                future.cancel()
+                raise AgentExecutionError(
+                    f"Workflow exceeded {self.settings.timeout_seconds}s timeout"
+                ) from exc
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+        final_state = (
+            result if isinstance(result, ResearchState) else ResearchState.model_validate(result)
+        )
+        final_state.add_trace_event("workflow_span", root_span)
+        flush_traces(self.settings)
+        return final_state
